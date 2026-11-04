@@ -1,4 +1,4 @@
-#profile-title: ABS free
+#profile-title: 🔥 ABS free
 hysteria2://1671a252e2a97dc2bda4e515475931da@132.226.226.189:50160?insecure=1&sni=www.bing.com#%E2%8F%B374%40oneclickvpnkeys
 hysteria2://1d491f8c-ccaa-43e1-b62d-f255c7832e27@129.146.124.201:51000?security=tls&sni=cn.cremedelamer.com&insecure=1#%F0%9F%87%BA%F0%9F%87%B8_US_%E7%BE%8E%E5%9B%BD_IPV4%20(2)
 hysteria2://541d46d8-5fc6-4d57-a7c4-9ccd3b5966eb@51.75.118.5:20222?insecure=1&sni=www.bing.com&obfs=salamander&obfs-password=6ae3fff53efc6d7e#%F0%9F%87%AB%F0%9F%87%B7206471%20%7C%20%E2%9A%A1%EF%B8%8FTelegram%20%3D%20t.me/L...
