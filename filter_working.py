@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 """
 Filters subscription: keeps only configs that pass TCP + TLS handshake.
 """
@@ -12,7 +13,7 @@ from pathlib import Path
 
 TIMEOUT = 6
 MAX_WORKERS = 40
-MAX_KEEP = 800
+MAX_KEEP = int(os.environ.get("MAX_KEEP", "800"))
 
 def parse_host_port(line: str):
     try:
