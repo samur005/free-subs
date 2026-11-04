@@ -18,10 +18,12 @@ jobs:
           python-version: "3.12"
       - name: Update lists
         run: python update_free_subs.py
+      - name: Filter working configs
+        run: python filter_working.py
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add free_subs.txt free_subs.b64 || true
+          git add free_subs.txt free_subs.b64 free_subs_small.txt free_subs_small.b64 || true
           git diff --staged --quiet || git commit -m "Update free subscription $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           git push
