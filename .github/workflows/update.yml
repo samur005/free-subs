@@ -1,0 +1,24 @@
+name: Update free subscription
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # каждые 6 часов
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Update lists
+        run: python update_free_subs.py
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add free_subs.txt free_subs.b64
+          git diff --staged --quiet || git commit -m "Update free subscription $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push
