@@ -53,6 +53,14 @@ jobs:
         run: |
           count=$(grep -c '://' free_subs_small.txt || echo 0)
           echo "count=$count" >> $GITHUB_OUTPUT
+      - name: Check Telegram secrets
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          echo "token set: $([ -n "$TELEGRAM_BOT_TOKEN" ] && echo yes || echo no)"
+          echo "chat_id set: $([ -n "$TELEGRAM_CHAT_ID" ] && echo yes || echo no)"
       - name: Telegram notification
         if: always()
         env:
