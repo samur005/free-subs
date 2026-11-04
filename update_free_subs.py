@@ -76,6 +76,12 @@ def main():
     b64.write_text(base64.b64encode("\n".join(sorted_cfgs).encode()).decode(), encoding="utf-8")
     print(f"Saved: {plain} ({plain.stat().st_size // 1024} KB)")
     print(f"Saved: {b64} ({b64.stat().st_size // 1024} KB)")
+    # Small version for clients that choke on large subs
+    small = sorted_cfgs[:1500]
+    small_txt = "\n".join(small) + "\n"
+    Path("free_subs_small.txt").write_text(small_txt, encoding="utf-8")
+    Path("free_subs_small.b64").write_text(base64.b64encode(small_txt.encode()).decode(), encoding="utf-8")
+    print(f"Saved small: free_subs_small.b64 ({Path(free_subs_small.b64).stat().st_size // 1024} KB)")
 
 if __name__ == "__main__":
     main()
