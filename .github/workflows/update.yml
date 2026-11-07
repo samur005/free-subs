@@ -28,18 +28,16 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install singbox2proxy
-
       - name: Update subscriptions
         run: python update_free_subs.py
 
-      - name: Filter working nodes with sing-box
+      - name: Filter working nodes (TCP + TLS)
         if: github.event_name == 'schedule' || inputs.filter == true
         env:
           MAX_KEEP: ${{ inputs.max_keep || '400' }}
-          TIMEOUT: "8"
-          WORKERS: "12"
+          TIMEOUT: "5"
+          WORKERS: "40"
+          MIN_WORKING: "20"
         run: python filter_working.py
 
       - name: Commit and push
