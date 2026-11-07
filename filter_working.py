@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Фильтрует подписку через реальный тест sing-box.
-Оставляет только рабочие ноды, сортирует по latency.
+Не затирает файл, если рабочих нод слишком мало.
 """
 import os
 import sys
@@ -15,8 +15,9 @@ except ImportError:
     sys.exit(1)
 
 MAX_KEEP = int(os.environ.get("MAX_KEEP", "400"))
-TIMEOUT = float(os.environ.get("TIMEOUT", "8"))
-WORKERS = int(os.environ.get("WORKERS", "12"))
+TIMEOUT = float(os.environ.get("TIMEOUT", "10"))
+WORKERS = int(os.environ.get("WORKERS", "10"))
+MIN_WORKING = int(os.environ.get("MIN_WORKING", "30"))   # если меньше — не перезаписываем
 TEST_URL = "https://www.gstatic.com/generate_204"
 
 
@@ -25,7 +26,7 @@ def main():
     if not src.exists():
         src = Path("free_subs_small.txt")
     if not src.exists():
-        print("Нет входного файла (free_subs.txt / free_subs_small.txt)")
+        print("Нет входного файла")
         sys.exit(1)
 
     lines = [
@@ -40,7 +41,7 @@ def main():
         return
 
     print("Запускаю проверку через sing-box...")
-    batch = SingBoxBatch(lines, batch_size=40, log_level="error")
+    batch = SingBoxBatch(lines, batch_size=30, log_level="error")
 
     working = []
     try:
@@ -50,11 +51,25 @@ def main():
             workers=WORKERS,
         )
         for r in results:
-            if r.working and r.latency_ms and r.latency_ms < 3000:
+            if r.working and r.latency_ms and r.latency_ms < 5000:
                 working.append(r)
                 print(f"OK  {r.latency_ms:6.0f} ms  {r.protocol:10}  {r.ip}")
+    except Exception as e:
+        print(f"Ошибка при проверке: {e}")
     finally:
-        batch.stop()
+        try:
+            batch.stop()
+        except Exception:
+            pass
+
+    print(f"Рабочих найдено: {len(working)}")
+
+    if len(working) < MIN_WORKING:
+        print(f"Слишком мало рабочих ({len(working)} < {MIN_WORKING}). Файл не перезаписываю.")
+        # Можно раскомментировать, если хочешь хотя бы что-то оставить:
+        # if working:
+        #     pass
+        return
 
     working.sort(key=lambda x: x.latency_ms or 9999)
     working = working[:MAX_KEEP]
@@ -71,8 +86,7 @@ def main():
         encoding="utf-8",
     )
 
-    print(f"\nОставлено рабочих: {len(working)} / {len(lines)}")
-    print(f"Сохранено в {out_txt} и {out_b64}")
+    print(f"Сохранено рабочих: {len(working)}")
 
 
 if __name__ == "__main__":
