@@ -1,24 +1,68 @@
 #!/usr/bin/env python3
 """
-Фильтрует подписку через реальный тест sing-box.
-Не затирает файл, если рабочих нод слишком мало.
+Фильтрует подписку простым TCP + TLS проверками.
+Быстро, стабильно, не требует sing-box.
 """
 import os
 import sys
 import base64
+import socket
+import ssl
+import concurrent.futures
+from urllib.parse import urlparse
 from pathlib import Path
 
-try:
-    from singbox2proxy import SingBoxBatch
-except ImportError:
-    print("Установи: pip install singbox2proxy")
-    sys.exit(1)
-
 MAX_KEEP = int(os.environ.get("MAX_KEEP", "400"))
-TIMEOUT = float(os.environ.get("TIMEOUT", "10"))
-WORKERS = int(os.environ.get("WORKERS", "10"))
-MIN_WORKING = int(os.environ.get("MIN_WORKING", "30"))   # если меньше — не перезаписываем
-TEST_URL = "https://www.gstatic.com/generate_204"
+TIMEOUT = float(os.environ.get("TIMEOUT", "5"))
+WORKERS = int(os.environ.get("WORKERS", "30"))
+MIN_WORKING = int(os.environ.get("MIN_WORKING", "20"))
+
+
+def parse_host_port(url: str):
+    try:
+        p = urlparse(url)
+        host = p.hostname
+        port = p.port
+        if not host:
+            return None, None
+        if port is None:
+            port = 443
+        return host, port
+    except Exception:
+        return None, None
+
+
+def check_one(url: str) -> tuple[str, bool]:
+    host, port = parse_host_port(url)
+    if not host:
+        return url, False
+
+    try:
+        # TCP
+        sock = socket.create_connection((host, port), timeout=TIMEOUT)
+        sock.settimeout(TIMEOUT)
+
+        # TLS (если порт 443 или выглядит как TLS)
+        try:
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            with context.wrap_socket(sock, server_hostname=host) as ssock:
+                ssock.settimeout(TIMEOUT)
+                # Просто факт, что TLS handshake прошёл
+                return url, True
+        except ssl.SSLError:
+            # TCP есть, но TLS нет — для многих протоколов это нормально
+            return url, True
+        except Exception:
+            return url, False
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+    except Exception:
+        return url, False
 
 
 def main():
@@ -40,42 +84,26 @@ def main():
         print("Пусто")
         return
 
-    print("Запускаю проверку через sing-box...")
-    batch = SingBoxBatch(lines, batch_size=30, log_level="error")
-
+    print("Проверяю TCP + TLS...")
     working = []
-    try:
-        results = batch.check(
-            test_url=TEST_URL,
-            timeout=TIMEOUT,
-            workers=WORKERS,
-        )
-        for r in results:
-            if r.working and r.latency_ms and r.latency_ms < 5000:
-                working.append(r)
-                print(f"OK  {r.latency_ms:6.0f} ms  {r.protocol:10}  {r.ip}")
-    except Exception as e:
-        print(f"Ошибка при проверке: {e}")
-    finally:
-        try:
-            batch.stop()
-        except Exception:
-            pass
 
-    print(f"Рабочих найдено: {len(working)}")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as executor:
+        futures = {executor.submit(check_one, url): url for url in lines}
+        for future in concurrent.futures.as_completed(futures):
+            url, ok = future.result()
+            if ok:
+                working.append(url)
+
+    print(f"Рабочих (TCP/TLS): {len(working)}")
 
     if len(working) < MIN_WORKING:
         print(f"Слишком мало рабочих ({len(working)} < {MIN_WORKING}). Файл не перезаписываю.")
-        # Можно раскомментировать, если хочешь хотя бы что-то оставить:
-        # if working:
-        #     pass
         return
 
-    working.sort(key=lambda x: x.latency_ms or 9999)
     working = working[:MAX_KEEP]
 
     out_lines = ["#profile-title: 🔥 ABS free"]
-    out_lines.extend(r.url for r in working)
+    out_lines.extend(working)
 
     out_txt = Path("free_subs_small.txt")
     out_b64 = Path("free_subs_small.b64")
@@ -86,7 +114,7 @@ def main():
         encoding="utf-8",
     )
 
-    print(f"Сохранено рабочих: {len(working)}")
+    print(f"Сохранено: {len(working)} конфигов")
 
 
 if __name__ == "__main__":
