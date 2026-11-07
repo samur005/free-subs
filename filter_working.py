@@ -1,92 +1,79 @@
 #!/usr/bin/env python3
+"""
+Фильтрует подписку через реальный тест sing-box.
+Оставляет только рабочие ноды, сортирует по latency.
+"""
 import os
-"""
-Filters subscription: keeps only configs that pass TCP + TLS handshake.
-"""
+import sys
 import base64
-import re
-import socket
-import ssl
-import concurrent.futures
-from urllib.parse import urlparse, parse_qs
 from pathlib import Path
 
-TIMEOUT = 6
-MAX_WORKERS = 40
-MAX_KEEP = int(os.environ.get("MAX_KEEP", "800"))
+try:
+    from singbox2proxy import SingBoxBatch
+except ImportError:
+    print("Установи: pip install singbox2proxy")
+    sys.exit(1)
 
-def parse_host_port(line: str):
-    try:
-        if line.startswith("vmess://"):
-            import json
-            raw = base64.b64decode(line[8:] + "==").decode("utf-8", errors="ignore")
-            j = json.loads(raw)
-            return j.get("add"), int(j.get("port", 443))
-        # vless://, trojan://, ss://, hysteria2:// etc.
-        u = urlparse(line)
-        host = u.hostname
-        port = u.port or 443
-        return host, port
-    except Exception:
-        return None, None
+MAX_KEEP = int(os.environ.get("MAX_KEEP", "400"))
+TIMEOUT = float(os.environ.get("TIMEOUT", "8"))
+WORKERS = int(os.environ.get("WORKERS", "12"))
+TEST_URL = "https://www.gstatic.com/generate_204"
 
-def check(host: str, port: int) -> bool:
-    if not host or not port:
-        return False
-    try:
-        sock = socket.create_connection((host, port), timeout=TIMEOUT)
-        sock.settimeout(TIMEOUT)
-        # Try TLS if common ports
-        if port in (443, 8443, 2053, 2083, 2087, 2096):
-            try:
-                ctx = ssl.create_default_context()
-                ctx.check_hostname = False
-                ctx.verify_mode = ssl.CERT_NONE
-                ssock = ctx.wrap_socket(sock, server_hostname=host)
-                ssock.close()
-                return True
-            except Exception:
-                sock.close()
-                return True  # TCP ok, TLS failed — still count as reachable
-        else:
-            sock.close()
-            return True
-    except Exception:
-        return False
 
 def main():
-    src = Path("free_subs_small.txt")
+    src = Path("free_subs.txt")
     if not src.exists():
-        src = Path("free_subs.txt")
-    lines = src.read_text(encoding="utf-8", errors="ignore").splitlines()
-    configs = [l.strip() for l in lines if l.strip() and not l.startswith("#") and "://" in l]
-    print(f"Input: {len(configs)}")
+        src = Path("free_subs_small.txt")
+    if not src.exists():
+        print("Нет входного файла (free_subs.txt / free_subs_small.txt)")
+        sys.exit(1)
 
-    def worker(line):
-        host, port = parse_host_port(line)
-        ok = check(host, port) if host else False
-        return line, ok
+    lines = [
+        line.strip()
+        for line in src.read_text(encoding="utf-8", errors="ignore").splitlines()
+        if line.strip() and not line.startswith("#") and "://" in line
+    ]
+    print(f"Всего конфигов: {len(lines)}")
+
+    if not lines:
+        print("Пусто")
+        return
+
+    print("Запускаю проверку через sing-box...")
+    batch = SingBoxBatch(lines, batch_size=40, log_level="error")
 
     working = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
-        futures = {ex.submit(worker, c): c for c in configs}
-        done = 0
-        for fut in concurrent.futures.as_completed(futures):
-            line, ok = fut.result()
-            done += 1
-            if ok:
-                working.append(line)
-                if len(working) >= MAX_KEEP:
-                    break
-            if done % 200 == 0:
-                print(f"  checked {done}, alive {len(working)}")
+    try:
+        results = batch.check(
+            test_url=TEST_URL,
+            timeout=TIMEOUT,
+            workers=WORKERS,
+        )
+        for r in results:
+            if r.working and r.latency_ms and r.latency_ms < 3000:
+                working.append(r)
+                print(f"OK  {r.latency_ms:6.0f} ms  {r.protocol:10}  {r.ip}")
+    finally:
+        batch.stop()
 
-    print(f"Working: {len(working)}")
-    header = "#profile-title: 🔥 ABS free\n"
-    out = header + "\n".join(working) + "\n"
-    Path("free_subs_small.txt").write_text(out, encoding="utf-8")
-    Path("free_subs_small.b64").write_text(base64.b64encode(out.encode()).decode())
-    print("Saved filtered free_subs_small.*")
+    working.sort(key=lambda x: x.latency_ms or 9999)
+    working = working[:MAX_KEEP]
+
+    out_lines = ["#profile-title: 🔥 ABS free"]
+    out_lines.extend(r.url for r in working)
+
+    out_txt = Path("free_subs_small.txt")
+    out_b64 = Path("free_subs_small.b64")
+
+    out_txt.write_text("\n".join(out_lines) + "\n", encoding="utf-8")
+    out_b64.write_text(
+        base64.b64encode("\n".join(out_lines).encode()).decode() + "\n",
+        encoding="utf-8",
+    )
+
+    print(f"\nОставлено рабочих: {len(working)} / {len(lines)}")
+    print(f"Сохранено в {out_txt} и {out_b64}")
+
 
 if __name__ == "__main__":
     main()
