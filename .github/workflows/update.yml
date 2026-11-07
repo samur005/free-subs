@@ -1,4 +1,4 @@
-name: Update free subscription
+name: Update free subs
 
 on:
   schedule:
@@ -6,83 +6,53 @@ on:
   workflow_dispatch:
     inputs:
       filter:
-        description: "Проверять рабочие конфиги (TCP+TLS)"
-        required: true
+        description: "Filter working nodes"
         type: boolean
         default: true
       max_keep:
-        description: "Макс. количество рабочих конфигов"
-        required: false
+        description: "Max working nodes to keep"
         type: string
-        default: "800"
-
-permissions:
-  contents: write
+        default: "400"
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Update lists
+
+      - name: Install dependencies
+        run: pip install singbox2proxy
+
+      - name: Update subscriptions
         run: python update_free_subs.py
-      - name: Filter working configs
+
+      - name: Filter working nodes with sing-box
         if: github.event_name == 'schedule' || inputs.filter == true
         env:
-          MAX_KEEP: ${{ inputs.max_keep || '800' }}
-        run: |
-          python filter_working.py
+          MAX_KEEP: ${{ inputs.max_keep || '400' }}
+          TIMEOUT: "8"
+          WORKERS: "12"
+        run: python filter_working.py
+
       - name: Commit and push
-        id: commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add free_subs.txt free_subs.b64 free_subs_small.txt free_subs_small.b64 || true
+          git add free_subs.txt free_subs.b64 free_subs_small.txt free_subs_small.b64
           if git diff --staged --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes"
           else
-            git commit -m "Update free subscription $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            git commit -m "Update free subs $(date -u +%Y-%m-%d_%H:%M)"
             git push
-            echo "changed=true" >> $GITHUB_OUTPUT
           fi
+
       - name: Count configs
-        id: count
         run: |
-          count=$(grep -c '://' free_subs_small.txt || echo 0)
-          echo "count=$count" >> $GITHUB_OUTPUT
-      - name: Telegram notification
-        if: always()
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
-            echo "Telegram secrets not set, skipping notification"
-            exit 0
-          fi
-          STATUS="${{ job.status }}"
-          CHANGED="${{ steps.commit.outputs.changed }}"
-          COUNT="${{ steps.count.outputs.count }}"
-          FILTERED="${{ github.event_name == 'schedule' || inputs.filter == true }}"
-          if [ "$STATUS" = "success" ]; then
-            if [ "$CHANGED" = "true" ]; then
-              TEXT="✅ Подписка обновлена%0A🔥 ABS free%0AРабочих конфигов: $COUNT"
-              if [ "$FILTERED" = "true" ]; then
-                TEXT="${TEXT}%0A🔍 С проверкой"
-              else
-                TEXT="${TEXT}%0A⚡ Без проверки"
-              fi
-              TEXT="${TEXT}%0Ahttps://raw.githubusercontent.com/samur005/free-subs/master/free_subs_small.b64"
-            else
-              TEXT="ℹ️ Подписка проверена, изменений нет%0AРабочих: $COUNT"
-            fi
-          else
-            TEXT="❌ Ошибка обновления подписки ABS free"
-          fi
-          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d chat_id="${TELEGRAM_CHAT_ID}" \
-            -d text="${TEXT}" \
-            -d parse_mode="HTML" || true
+          echo "Small: $(grep -c '://' free_subs_small.txt || true)"
+          echo "Full:  $(grep -c '://' free_subs.txt || true)"
