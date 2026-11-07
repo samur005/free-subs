@@ -11,9 +11,7 @@ from pathlib import Path
 
 SOURCES = [
     "https://sub.vlessfo.ru/vlessforu/working_configs.txt",
-    "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt",
-    "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
-    "https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt"
+    "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt"
 ]
 
 PROTOCOLS = ("vless://", "vmess://", "trojan://", "ss://", "ssr://", "hysteria2://", "hy2://", "tuic://")
