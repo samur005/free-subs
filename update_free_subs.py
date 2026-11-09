@@ -24,6 +24,8 @@ SOURCES = [
     ("https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/WHITE-CIDR-RU-checked.txt", 0),
     ("https://raw.githubusercontent.com/igareck/vpn-configs-for-russia/main/BLACK_VLESS_RUS.txt", 0),
     ("https://sub.vlessfo.ru/vlessforu/working_configs.txt", 0),
+    # Единый список (как «GitHub Page» в YPtun): ~20 000 vless, обновляется раз в час — случайная выборка
+    ("https://breead1337.github.io/ws-cache-9e41/v.txt", 1000),
     # Общие агрегаторы — только выборка
     ("https://raw.githubusercontent.com/MahanKenway/Freedom-V2Ray/main/configs/mix.txt", 250),
 ]

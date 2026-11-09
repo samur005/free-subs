@@ -23,6 +23,7 @@
 
 - [zieng2/wl](https://github.com/zieng2/wl) — небольшие списки под белые списки РФ (`vless_universal`, `vless_lite`);
 - [igareck/vpn-configs-for-russia](https://github.com/igareck/vpn-configs-for-russia) — VLESS для белых списков мобильного интернета, CIDR и обхода блокировок;
+- breead1337/ws-cache-9e41 (v.txt) — единый список «GitHub Page» из YPtun, берётся 1000 случайных
 - [MahanKenway/Freedom-V2Ray](https://github.com/MahanKenway/Freedom-V2Ray) — общий агрегатор, берётся выборка до 250 серверов.
 
 А также `sub.vlessfo.ru` (Tg: Vlessforu).
