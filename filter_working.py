@@ -12,13 +12,23 @@ import concurrent.futures
 from urllib.parse import urlparse
 from pathlib import Path
 
-MAX_KEEP = int(os.environ.get("MAX_KEEP", "400"))
+MAX_KEEP = int(os.environ.get("MAX_KEEP", "600"))
 TIMEOUT = float(os.environ.get("TIMEOUT", "5"))
 WORKERS = int(os.environ.get("WORKERS", "30"))
 MIN_WORKING = int(os.environ.get("MIN_WORKING", "20"))
 
 
 def parse_host_port(url: str):
+    if url.startswith("vmess://"):
+        try:
+            import json
+            raw = url[len("vmess://"):].split("#", 1)[0].strip()
+            data = json.loads(base64.urlsafe_b64decode(raw.replace("+", "-").replace("/", "_") + "=" * (-len(raw) % 4)))
+            host = str(data.get("add") or "").strip()
+            port = int(data.get("port") or 443)
+            return (host or None), port
+        except Exception:
+            return None, None
     try:
         p = urlparse(url)
         host = p.hostname
@@ -87,10 +97,9 @@ def main():
     print("Проверяю TCP + TLS...")
     working = []
 
+    # executor.map сохраняет порядок входа — порядок приоритета источников (Россия первой)
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as executor:
-        futures = {executor.submit(check_one, url): url for url in lines}
-        for future in concurrent.futures.as_completed(futures):
-            url, ok = future.result()
+        for url, ok in executor.map(check_one, lines):
             if ok:
                 working.append(url)
 
